@@ -7,3 +7,4 @@ Scripts/
 .env
 pyvenv.cfg
 visited_urls.txt
+articles_*.json
