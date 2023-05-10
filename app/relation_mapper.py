@@ -1,4 +1,4 @@
-def map_relations(content: str, relations: dict[str, dict[str, int]], window_size: int):
+def map_relations(content: str, relations: dict, window_size: int):
     '''
     Identify relations between keywords based on window_size
     Modifies keywords in-place
