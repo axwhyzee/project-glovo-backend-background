@@ -42,7 +42,7 @@ def update_one(collection: str, condition: dict, target: dict, upsert: bool = Fa
     '''
     db[collection].update_one(condition, target, upsert=upsert)
 
-def find_all(collection: str) -> list:
+def find_all(collection: str):
     '''
     Get all documents for a specific collection
 
@@ -53,7 +53,7 @@ def find_all(collection: str) -> list:
 
     return list(cursor)
 
-def find_many(collection: str, condition: dict, projection: dict) -> list[dict]:
+def find_many(collection: str, condition: dict, projection: dict):
     '''
     Find multiple documents
 
@@ -63,7 +63,7 @@ def find_many(collection: str, condition: dict, projection: dict) -> list[dict]:
     '''
     return db[collection].find(condition, projection)
 
-def delete_many(collection: str, condition) -> dict:
+def delete_many(collection: str, condition):
     '''
     Delete multiple documents
 
