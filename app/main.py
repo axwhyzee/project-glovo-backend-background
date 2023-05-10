@@ -312,7 +312,13 @@ def cycle(request: Request) -> dict:
     run_scraper() 
 
     # remove outdated documents (14 days or more)
-    print('Update count:', clean_up_by_days(14))
+    # print('Update count:', clean_up_by_days(14))
+
+    # delete all data 
+    delete_many(COLLECTION_NODES, {}) 
+    delete_many(COLLECTION_NEWS, {}) 
+    delete_many(COLLECTION_EMBEDDINGS, {})
+    delete_many(COLLECTION_RELATIONS, {}) 
     
     run_nlp_processor()
 
@@ -320,13 +326,13 @@ def cycle(request: Request) -> dict:
 
 
 if __name__ == '__main__':
-    #uvicorn.run("main:app", host="127.0.0.1", port=10000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
     # run_scraper() 
 
     # remove outdated documents (14 days or more)
     # print('Update count:', clean_up_by_days(14))
     
-    run_nlp_processor()
+    #run_nlp_processor()
 
 # to run ...
 # pip install -r API_requirements.txt
