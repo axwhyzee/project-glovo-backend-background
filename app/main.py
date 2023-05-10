@@ -20,7 +20,6 @@ config = read_config('WEBSCRAPER')
 SIMILARITY_THRESHOLD = float(config['SIMILARITY_THRESHOLD'])
 KEYWORDS_PER_ARTICLE = int(config['KEYWORDS_PER_ARTICLE'])
 WINDOW_SIZE = int(config['WINDOW_SIZE'])
-VISITED_URLS_PATH = config['VISITED_URLS_PATH']
 SCRAPY_PROJ_PATH = config['SCRAPY_PROJECT_PATH']
 
 SHA256_SECRET_KEY = os.environ.get('SHA256_SECRET_KEY')
@@ -39,11 +38,6 @@ SCRAPER_MAPPINGS = {
         'spider': 'yahoo_spider'
     }
 }
-
-# if file does not exist, create file
-if VISITED_URLS_PATH not in os.listdir():
-    f = open(VISITED_URLS_PATH, "w")
-    f.close()
 
 
 app = FastAPI()
@@ -72,7 +66,8 @@ def timestamp_to_epoch(timestamp) -> int:
     :return: Unix timestamp
     :rtype: int
     '''
-    return int(parser.parse(timestamp).timestamp())
+    if timestamp:
+        return int(parser.parse(timestamp).timestamp())
 
 def get_cosine_similarity(a, b):
     numerator = np.dot(a, b.transpose())
@@ -113,6 +108,11 @@ def run_scraper():
     :return: Object that states the Scrapy spiders that were executed.
     :rtype: dict
     '''
+
+    g = open('visited_urls.txt', 'w')
+    g.write('\n'.join(list(map(lambda doc:doc['url'], find_many(COLLECTION_NEWS, {}, {'_id': 0, 'url': 1})))))
+    g.close()
+
     os.chdir(SCRAPY_PROJ_PATH) # CD to where scrapy.cfg is
 
     for scraper in SCRAPER_MAPPINGS.values():
@@ -126,6 +126,49 @@ def run_scraper():
 
     os.chdir('../')
 
+    os.remove('visited_urls.txt')
+
+def process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs):
+    # check for null, check for visited
+    if not (article_obj['url'] and article_obj['datetime'] and article_obj['content']) or article_obj['url'] in visited:
+        return
+    
+    article_obj['content'] = article_obj['content'].lower()
+    article_obj['title'] = article_obj['title'].lower()
+    
+    # extract keyphrases, word embeddings, doc embedding from content. Title used for seeding
+    keyphrases = extract_keywords(article_obj['content'].replace('\n', ' '), article_obj['title'], KEYWORDS_PER_ARTICLE)
+
+    for phrase, embedding in keyphrases:
+        # increment frequency of phrase
+        nodes[phrase] = nodes.get(phrase, 0) + 1
+
+        doc['keys'].append(phrase)
+        phrase = phrase.replace(' ', '__')
+
+        if phrase not in relations:
+            relations[phrase] = {}
+        
+        if phrase not in embeddings:
+            embeddings[phrase] = embedding
+
+    news_docs.append(doc)
+    visited.add(article_obj['url'])
+
+def process_article_relations(article_obj, visited, relations):
+    # check for null, check for visited
+    if not (article_obj['url'] and article_obj['datetime'] and article_obj['content']) or article_obj['url'] in visited:
+        return
+
+    visited.add(article_obj['url'])
+    content = article_obj['title'] + ' ' + article_obj['content']
+    content = content.lower()
+
+    for joined_phrase in relations:
+        content = content.replace(joined_phrase.replace('__', ' '), joined_phrase)
+
+    map_relations(content, relations, WINDOW_SIZE)
+
 def run_nlp_processor():
     '''
     Remove outdated data.
@@ -138,13 +181,10 @@ def run_nlp_processor():
     '''
     relation_docs = [] # collection of docs to be inserted to relations
     news_docs = [] # collection of docs to be inserted to news
-    nodes = {doc['data']: doc['freq'] for doc in find_all(COLLECTION_NODES)} # collection of docs to be inserted to nodes
+    nodes = {} # collection of docs to be inserted to nodes
     relations = {} # temporary, mutable dict of relations that incrementally gets updated for each article
-    embeddings = {doc['data']: doc['embedding'] for doc in find_all(COLLECTION_EMBEDDINGS)}
-
-    # get list of URLs from database so to avoid making duplicate entries
-    visited = set(map(lambda doc:doc['url'], find_all(COLLECTION_NEWS)))
-    visited_clone = visited.copy()
+    embeddings = {}
+    visited = set()
     
     # read scraped data from each of the Scrapy spiders
     for publisher in SCRAPER_MAPPINGS:
@@ -154,46 +194,33 @@ def run_nlp_processor():
             data = json.load(f)
 
             for i, article_obj in enumerate(data): # url, title, date, content
-                if i % 20 == 0:
-                    print(100 * i / len(data))
-                # check for null, check for visited
-                if not (article_obj['url'] and article_obj['date'] and article_obj['content']) or article_obj['url'] in visited:
-                    continue
+                if i % 10 == 0:
+                    print(f'{100*i/len(data)}%')
 
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
-                    'datetime': timestamp_to_epoch(article_obj['date']),
+                    'content': article_obj['content'],
+                    'datetime': timestamp_to_epoch(article_obj['datetime']),
                     'publisher': publisher,
                     'keys': []
                 }
 
-                article_obj['content'] = article_obj['content'].lower()
-                article_obj['title'] = article_obj['title'].lower()
-                
-                # extract keyphrases, word embeddings, doc embedding from content. Title used for seeding
-                keyphrases = extract_keywords(article_obj['content'].replace('\n', ' '), article_obj['title'], KEYWORDS_PER_ARTICLE)
+                process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
 
-                for phrase, embedding in keyphrases:
-                    # increment frequency of phrase
-                    nodes[phrase] = nodes.get(phrase, 0) + 1
+    for article_obj in find_all(COLLECTION_NEWS):
+        doc = {
+            'title': article_obj['title'],
+            'url': article_obj['url'],
+            'content': article_obj['content'],
+            'datetime': article_obj['datetime'],
+            'publisher': article_obj['publisher'],
+            'keys': []
+        }
+    
+        process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
 
-                    doc['keys'].append(phrase)
-                    phrase = phrase.replace(' ', '__')
-
-                    if phrase not in relations:
-                        relations[phrase] = {}
-                    
-                    if phrase not in embeddings:
-                        embeddings[phrase] = embedding
- 
-                # topic modelling
-                # for i, topic in enumerate(topics):
-                #    doc[f'topic{i+1}'] = topic
-
-                news_docs.append(doc)
-                visited.add(article_obj['url'])
-
+    visited.clear()
     for scraper in SCRAPER_MAPPINGS:
         filepath = os.path.join("webscraper", SCRAPER_MAPPINGS[scraper]['save_file'])
 
@@ -202,18 +229,10 @@ def run_nlp_processor():
             data = json.load(f)
 
             for article_obj in data: # url, title, date, content
-                # check for null, check for visited
-                if not (article_obj['url'] and article_obj['date'] and article_obj['content']) or article_obj['url'] in visited_clone:
-                    continue
+                process_article_relations(article_obj, visited, relations)
 
-                visited_clone.add(article_obj['url'])
-                content = article_obj['title'] + ' ' + article_obj['content']
-                content = content.lower()
-
-                for joined_phrase in relations:
-                    content = content.replace(joined_phrase.replace('__', ' '), joined_phrase)
-
-                map_relations(content, relations, WINDOW_SIZE)
+    for article_obj in find_all(COLLECTION_NEWS):
+        process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
     wqupc = WQUPC(len(embeddings))
@@ -261,12 +280,12 @@ def run_nlp_processor():
                 del relation[to_replace]
         
     # convert relations from hashmap to list of docs to be inserted
-    visited_clone = set()
+    visited.clear()
     for central in relations:
         adjacency = relations[central]
 
         for adjacent in adjacency:
-            if (adjacent, central) in visited_clone or adjacent in replacement_map:
+            if (adjacent, central) in visited or adjacent in replacement_map:
                 continue
 
             relation_docs.append({
@@ -275,10 +294,13 @@ def run_nlp_processor():
                 'weight': adjacency[adjacent]
             })
             
-            visited_clone.add((central, adjacent))
+            visited.add((central, adjacent))
     
     # update database
-    delete_many(COLLECTION_NODES, {})
+
+    print(f'Nodes: {len(nodes)} items')
+    print(f'News: {len(news_docs)} items')
+    print(f'Relations: {len(relation_docs)} items')
 
     if nodes:
         insert_many(COLLECTION_NODES, list(map(lambda item: {
@@ -290,15 +312,6 @@ def run_nlp_processor():
     if relation_docs:
         insert_many(COLLECTION_RELATIONS, relation_docs)
     
-    if embeddings:
-        insert_many(COLLECTION_EMBEDDINGS, list(map(lambda item: {
-            'data': item[0], 
-            'embedding': item[1]
-        }, embeddings.items()))) 
-
-    # update visited_urls.txt
-    with open(VISITED_URLS_PATH, 'w') as g:
-        g.write("\n".join(visited))
 
 @app.get('/')
 def read_root():
@@ -309,31 +322,17 @@ def cycle(request: Request) -> dict:
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
         return {'response': 'Invalid or missing secret key'}
 
-    run_scraper() 
+    run_scraper()     
 
-    # remove outdated documents (14 days or more)
-    # print('Update count:', clean_up_by_days(14))
-
-    # delete all data 
-    delete_many(COLLECTION_NODES, {}) 
-    delete_many(COLLECTION_NEWS, {}) 
-    delete_many(COLLECTION_EMBEDDINGS, {})
-    delete_many(COLLECTION_RELATIONS, {}) 
+    # remove all nodes, embeddings, relations and outdated news (14 days or more)
+    clean_up_by_days(14)
     
     run_nlp_processor()
+
 
     return {'response': 'success'}
 
 
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
-    # run_scraper() 
-
-    # remove outdated documents (14 days or more)
-    # print('Update count:', clean_up_by_days(14))
-    
-    #run_nlp_processor()
-
-# to run ...
-# pip install -r API_requirements.txt
-# uvicorn API:app --host 0.0.0.0 --port 10000
+    run_scraper()
+#    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
