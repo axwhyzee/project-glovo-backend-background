@@ -2,6 +2,9 @@ def map_relations(content: str, relations: dict, window_size: int):
     '''
     Identify relations between keywords based on window_size
     Modifies keywords in-place
+    :param str content: Article content
+    :param dict[str, list[str, int]] relations: Adjacency list of relations between key phrases
+    :param int window_size: Sliding window size
     '''
     content = content.replace('\n', ' ').split()    
     window: dict[str, int] = {}
