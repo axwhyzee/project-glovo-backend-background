@@ -18,7 +18,6 @@ class YahooSpiderSpider(scrapy.Spider):
 
             if link not in self.visited:
                 yield scrapy.Request(link, callback=self.parse_article, meta={'url': link})
-        pass
 
     def parse_article(self, response):
         content=response.css("article p::text").extract()
@@ -28,7 +27,7 @@ class YahooSpiderSpider(scrapy.Spider):
             yield {
             "url": response.meta.get('url'),
             "title": response.css("article h1::text").get(),
-            "date": response.css("article time::attr(datetime)").get(),
+            "datetime": response.css("article time::attr(datetime)").get(),
             "content": "\n".join(content)
         }
 

@@ -21,7 +21,6 @@ class StraitsTimesSpiderSpider(scrapy.Spider):
 
             if link not in self.visited:
                 yield scrapy.Request(link, callback=self.parse_article, meta={'url': link})
-        pass
 
     def parse_article(self, response):
         content=response.css("div.ds-field-item p::text").extract()
@@ -37,7 +36,7 @@ class StraitsTimesSpiderSpider(scrapy.Spider):
         yield {
             "url": response.meta.get('url'),
             "title": response.css("h1.headline::text").get().strip(),
-            "date": date,
+            "datetime": date,
             "content": content
         }
 

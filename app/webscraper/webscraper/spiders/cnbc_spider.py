@@ -24,6 +24,6 @@ class ArticlesSpider(scrapy.Spider):
         yield {
             "url": response.meta.get('url'),
             "title": response.css("h1.ArticleHeader-headline::text").get(),
-            "date": response.css("time::attr(datetime)").get(),
+            "datetime": response.css("time::attr(datetime)").get(),
             "content": "\n".join(content)
         }
