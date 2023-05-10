@@ -22,7 +22,7 @@ def map_relations(content: str, relations: dict[str, dict[str, int]], window_siz
             relations[central][peripheral] = relations[central].get(peripheral, 0) + window[peripheral]
             relations[peripheral][central] = relations[peripheral].get(central, 0) + window[central]
 
-    for i in range(len(content) - 50):
+    for i in range(len(content) - window_size):
         if content[st] in relations:
             window[content[st]] -= 1
 

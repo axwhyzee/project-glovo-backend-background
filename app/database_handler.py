@@ -1,21 +1,17 @@
 from pymongo import MongoClient
-from dotenv import load_dotenv, find_dotenv
+from settings import read_config
 import time
 import os
 
-# load env variable file
-load_dotenv(find_dotenv())
 
-PASSWORD = os.environ.get("MONGODB_PWD")
-CONNECTION_STRING = f'mongodb+srv://admin:{PASSWORD}@cluster0.xo29eao.mongodb.net/?retryWrites=true&w=majority'
-DB_NAME = 'project-glovo'
-KEYWORDS_PER_ARTICLE = 5
-COLLECTION_NEWS = 'news'
-COLLECTION_NODES = 'nodes'
-COLLECTION_RELATIONS = 'relations'
+config = read_config('MONGODB')
+COLLECTION_NEWS = config['COLLECTION_NEWS']
+COLLECTION_NODES = config['COLLECTION_NEWS']
+COLLECTION_RELATIONS = config['COLLECTION_NEWS']
+COLLECTION_EMBEDDINGS = config['COLLECTION_NEWS']
 
-client = MongoClient(CONNECTION_STRING)
-db = client[DB_NAME]
+client = MongoClient(os.environ.get('MONGODB_URL'))
+db = client[config['DB_NAME']]
 
 
 def insert_many(collection: str, docs: dict):
@@ -27,7 +23,6 @@ def insert_many(collection: str, docs: dict):
     '''
     db[collection].insert_many(docs)
 
-
 def insert_one(collection: str, doc: dict):
     '''
     Insert a document
@@ -36,7 +31,6 @@ def insert_one(collection: str, doc: dict):
     :param dict docs: Document object to be inserted
     '''
     db[collection].insert_one(doc)
-
 
 def update_one(collection: str, condition: dict, target: dict, upsert: bool = False):
     '''
@@ -49,7 +43,6 @@ def update_one(collection: str, condition: dict, target: dict, upsert: bool = Fa
     '''
     db[collection].update_one(condition, target, upsert=upsert)
 
-
 def find_all(collection: str) -> list:
     '''
     Get all documents for a specific collection
@@ -61,7 +54,6 @@ def find_all(collection: str) -> list:
 
     return list(cursor)
 
-
 def find_many(collection: str, condition: dict) -> list[dict]:
     '''
     Find multiple documents
@@ -72,7 +64,6 @@ def find_many(collection: str, condition: dict) -> list[dict]:
     '''
     return db[collection].find(condition)
 
-
 def delete_many(collection: str, condition) -> dict:
     '''
     Delete multiple documents
@@ -82,7 +73,6 @@ def delete_many(collection: str, condition) -> dict:
     :return: Number of documents deleted
     '''
     return db[collection].delete_many(condition).deleted_count
-
 
 def clean_up_by_days(days: int) -> int:
     '''
@@ -99,11 +89,8 @@ def clean_up_by_days(days: int) -> int:
 
     for doc in find_many(COLLECTION_NEWS, {'datetime': {"$lt": lower_limit}}):
         print(doc)
-        for i in range(1, KEYWORDS_PER_ARTICLE + 1):
-            key = f'key{i}'
-            if key in doc:
-                keyword = doc[key]
-                decrement_keywords[keyword] = decrement_keywords.get(keyword, 0) + 1
+        for keyword in doc['keys']:
+            decrement_keywords[keyword] = decrement_keywords.get(keyword, 0) + 1
 
     # replace all nodes with newly calculated ones
     nodes = find_all(COLLECTION_NODES)
@@ -120,9 +107,12 @@ def clean_up_by_days(days: int) -> int:
                 nodes[i]['freq'] -= count
 
     delete_many(COLLECTION_NODES, {})
+    embeddings = list(filter(lambda doc:doc['data'] in nodes, find_all(COLLECTION_EMBEDDINGS)))
+    delete_many(COLLECTION_EMBEDDINGS, {})
 
     if nodes:
         insert_many(COLLECTION_NODES, nodes)
+        insert_many(COLLECTION_EMBEDDINGS, embeddings)
 
     delete_news_count = delete_many(COLLECTION_NEWS, {'datetime': {'$lt': lower_limit}})
 
