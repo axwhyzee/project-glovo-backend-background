@@ -280,6 +280,10 @@ def run_nlp_processor():
     print(f'News: {len(news_docs)} items')
     print(f'Relations: {len(relation_docs)} items')
 
+    delete_many(COLLECTION_NEWS, {})
+    delete_many(COLLECTION_NODES, {})
+    delete_many(COLLECTION_RELATIONS, {})
+    
     if nodes:
         insert_many(COLLECTION_NODES, list(map(lambda item: {
             'data': item[0], 
@@ -299,10 +303,6 @@ def read_root():
 def cycle(request: Request) -> dict:
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
         return {'response': 'Invalid or missing secret key'}
-
-    delete_many(COLLECTION_NEWS, {})
-    delete_many(COLLECTION_NODES, {})
-    delete_many(COLLECTION_RELATIONS, {})
 
     run_scraper()
     run_nlp_processor()
