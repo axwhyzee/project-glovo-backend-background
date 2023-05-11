@@ -72,17 +72,3 @@ def delete_many(collection: str, condition):
     :return: Number of documents deleted
     '''
     return db[collection].delete_many(condition).deleted_count
-
-def clean_up_by_days(days: int):
-    '''
-    Remove all news documents where publish date is older than specified days old.
-    Decrement frequency of nodes that were keywords of the news documents deleted.
-
-    :param int days: Lower limit for publish date
-    :return: Object containing number of nodes and news documents deleted
-    '''
-    lower_limit = time.time() - days * 24 * 60 * 60
-
-    delete_many(COLLECTION_NEWS, {'datetime': {"$lt": lower_limit}})
-    delete_many(COLLECTION_NODES, {})
-    delete_many(COLLECTION_RELATIONS, {})

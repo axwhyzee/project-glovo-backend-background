@@ -108,11 +108,6 @@ def run_scraper():
     :return: Object that states the Scrapy spiders that were executed.
     :rtype: dict
     '''
-
-    g = open('visited_urls.txt', 'w')
-    g.write('\n'.join(list(map(lambda doc:doc['url'], find_many(COLLECTION_NEWS, {}, {'_id': 0, 'url': 1})))))
-    g.close()
-
     os.chdir(SCRAPY_PROJ_PATH) # CD to where scrapy.cfg is
 
     for scraper in SCRAPER_MAPPINGS.values():
@@ -125,8 +120,6 @@ def run_scraper():
         os.system(f'scrapy crawl -o {path} -t json {scraper["spider"]}')
 
     os.chdir('../')
-
-    os.remove('visited_urls.txt')
 
 def process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs):
     # check for null, check for visited
@@ -208,18 +201,6 @@ def run_nlp_processor():
 
                 process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
 
-    for article_obj in find_all(COLLECTION_NEWS):
-        doc = {
-            'title': article_obj['title'],
-            'url': article_obj['url'],
-            'content': article_obj['content'],
-            'datetime': article_obj['datetime'],
-            'publisher': article_obj['publisher'],
-            'keys': []
-        }
-    
-        process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
-
     visited.clear()
     for scraper in SCRAPER_MAPPINGS:
         filepath = os.path.join("webscraper", SCRAPER_MAPPINGS[scraper]['save_file'])
@@ -230,9 +211,6 @@ def run_nlp_processor():
 
             for article_obj in data: # url, title, date, content
                 process_article_relations(article_obj, visited, relations)
-
-    for article_obj in find_all(COLLECTION_NEWS):
-        process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
     wqupc = WQUPC(len(embeddings))
@@ -322,13 +300,12 @@ def cycle(request: Request) -> dict:
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
         return {'response': 'Invalid or missing secret key'}
 
-    run_scraper()     
+    delete_many(COLLECTION_NEWS, {})
+    delete_many(COLLECTION_NODES, {})
+    delete_many(COLLECTION_RELATIONS, {})
 
-    # remove all nodes, embeddings, relations and outdated news (14 days or more)
-    clean_up_by_days(14)
-    
+    run_scraper()
     run_nlp_processor()
-
 
     return {'response': 'success'}
 
