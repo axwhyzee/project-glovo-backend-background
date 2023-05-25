@@ -4,6 +4,7 @@ from hashlib import sha256
 import json
 import os
 import requests
+from requests.exceptions import ReadTimeout
 import threading
 import uuid
 load_dotenv(find_dotenv())
@@ -321,11 +322,20 @@ def run_nlp_processor():
     # store webhook
     insert_one(COLLECTION_WEBHOOKS, {'token': webhook_token})
     
-    requests.get(url=GRAPH_SIMULATION_URL, timeout=5, params={
-        'dbraw': RAW_DB_NAME,
-        'dbrendered': RENDERED_DB_NAME,
-        'webhook': f'{HOST_URL}/webhoook/{webhook_token}/'
-    })
+    print(f'GET / {GRAPH_SIMULATION_URL}')
+    print(f'dbraw: {RAW_DB_NAME}')
+    print(f'dbrendered: {RENDERED_DB_NAME}')
+    print(f'webhook: {HOST_URL}/webhoook/{webhook_token}/')
+    print()
+
+    try:
+        requests.get(url=GRAPH_SIMULATION_URL, timeout=30, params={
+            'dbraw': RAW_DB_NAME,
+            'dbrendered': RENDERED_DB_NAME,
+            'webhook': f'{HOST_URL}/webhoook/{webhook_token}/'
+        })
+    except ReadTimeout as e:
+        pass
 
 @app.get('/')
 def read_root():
