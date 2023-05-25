@@ -332,7 +332,7 @@ def run_nlp_processor():
         requests.get(url=GRAPH_SIMULATION_URL, timeout=30, params={
             'dbraw': RAW_DB_NAME,
             'dbrendered': RENDERED_DB_NAME,
-            'webhook': f'{HOST_URL}/webhoook/{webhook_token}/'
+            'webhook': f'{HOST_URL}/webhook/{webhook_token}/'
         })
     except ReadTimeout as e:
         pass
