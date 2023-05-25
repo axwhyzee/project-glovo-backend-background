@@ -151,6 +151,8 @@ def run_scraper():
 
     os.chdir('../')
 
+    run_nlp_processor()
+
 def process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs):
     # check for null, check for visited
     if not (article_obj['url'] and article_obj['datetime'] and article_obj['content']) or article_obj['url'] in visited:
@@ -202,6 +204,7 @@ def run_nlp_processor():
     :return: Object that states the scraped data that have been processed.
     :rtype: dict
     '''
+    print('START NLP PROCESSOR')
     relation_docs = [] # collection of docs to be inserted to relations
     news_docs = [] # collection of docs to be inserted to news
     nodes = {} # collection of docs to be inserted to nodes
@@ -329,11 +332,9 @@ def cycle(request: Request) -> dict:
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
         return {'response': 'Invalid or missing secret key'}
 
-    thread_scraper = threading.Thread(target=run_scraper)
-    thread_scraper.start()
-    thread_nlp_processor = threading.Thread(target=run_nlp_processor)  
-    thread_nlp_processor.start()
-    
+    thread = threading.Thread(target=run_scraper)
+    thread.start()
+
     return {'response': 'success'}
 
 @app.get('/webhook/{token}/')
