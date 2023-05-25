@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import requests
+import threading
 import uuid
 load_dotenv(find_dotenv())
 
@@ -409,9 +410,11 @@ def cycle(request: Request) -> dict:
     
     logger.info('GET /cycle Authenticated')
 
-    run_scraper()
-    run_nlp_processor()
-
+    thread_scraper = threading.Thread(target=run_scraper)
+    thread_scraper.start()
+    thread_nlp_processor = threading.Thread(target=run_nlp_processor)  
+    thread_nlp_processor.start()
+    
     return {'response': 'success'}
 
 @app.get('/webhook/{token}/')
