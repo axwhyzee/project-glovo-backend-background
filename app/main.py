@@ -24,12 +24,11 @@ from database_handler import (
     TEMP_COLLECTION_NODES,
     TEMP_COLLECTION_NEWS,
     TEMP_COLLECTION_RELATIONS,
-    db,
-    delete_many,
     drop_collection,
     find_last,
     insert_one,
-    insert_many
+    insert_many,
+    rename_collection
 )
 from relation_mapper import map_relations
 from settings import read_config
@@ -424,16 +423,16 @@ def webhook(token: str):
     
     logger.info('GET /webhook Authenticated')
     
-    db[COLLECTION_NEWS].rename('_' + TEMP_COLLECTION_NEWS)
-    db[TEMP_COLLECTION_NEWS].rename(COLLECTION_NEWS)
+    rename_collection(COLLECTION_NEWS, '_' + TEMP_COLLECTION_NEWS)
+    rename_collection(TEMP_COLLECTION_NEWS, COLLECTION_NEWS)
     drop_collection('_' + TEMP_COLLECTION_NEWS)
 
-    db[COLLECTION_NODES].rename('_' + TEMP_COLLECTION_NODES)
-    db[TEMP_COLLECTION_NODES].rename(COLLECTION_NODES)
+    rename_collection(COLLECTION_NODES, '_' + TEMP_COLLECTION_NODES)
+    rename_collection(TEMP_COLLECTION_NODES, COLLECTION_NODES)
     drop_collection('_' + TEMP_COLLECTION_NODES)
 
-    db[COLLECTION_RELATIONS].rename('_' + TEMP_COLLECTION_RELATIONS)
-    db[TEMP_COLLECTION_RELATIONS].rename(COLLECTION_RELATIONS)
+    rename_collection(COLLECTION_RELATIONS, '_' + TEMP_COLLECTION_RELATIONS)
+    rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
     drop_collection('_' + TEMP_COLLECTION_RELATIONS)
 
     return {'response': 'Success'}

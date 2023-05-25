@@ -101,3 +101,7 @@ def drop_collection(collection: str):
     :param str collection: Name of collection to drop
     '''
     db.drop_collection(collection)
+
+
+def rename_collection(src: str, dst: str):
+    db[src].rename(dst)
