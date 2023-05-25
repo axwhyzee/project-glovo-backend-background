@@ -11,7 +11,6 @@ load_dotenv(find_dotenv())
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
 import numpy as np
-from tqdm import tqdm
 import uvicorn
 
 from api import extract_keywords
@@ -219,7 +218,8 @@ def run_nlp_processor():
 
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            for article_obj in tqdm(data): # url, title, date, content
+            print(f'({len(data)}) files from {filepath}')
+            for article_obj in data: # url, title, date, content
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -237,8 +237,8 @@ def run_nlp_processor():
         # relation mapping
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-
-            for article_obj in tqdm(data): # url, title, date, content
+            print(f'({len(data)}) files from {filepath}')
+            for article_obj in data: # url, title, date, content
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
@@ -304,6 +304,10 @@ def run_nlp_processor():
             visited.add((central, adjacent))
     
     # update database
+    print(f'Insert ({len(nodes)}) records to {TEMP_COLLECTION_NODES}')
+    print(f'Insert ({len(news_docs)}) records to {TEMP_COLLECTION_NEWS}')
+    print(f'Insert ({len(relation_docs)}) records to {TEMP_COLLECTION_RELATIONS}')
+
     if nodes:
         insert_many(TEMP_COLLECTION_NODES, list(map(lambda item: {
             'data': item[0], 
