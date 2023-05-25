@@ -2,7 +2,6 @@ from dateutil import parser
 from dotenv import load_dotenv, find_dotenv
 from hashlib import sha256
 import json
-import logging
 import os
 import requests
 import threading
@@ -12,6 +11,7 @@ load_dotenv(find_dotenv())
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
 import numpy as np
+from tqdm import tqdm
 import uvicorn
 
 from api import extract_keywords
@@ -35,8 +35,6 @@ from relation_mapper import map_relations
 from settings import read_config
 from WQUPC import WeightedQuickUnionPathCompression as WQUPC
 
-
-logger = logging.getLogger("uvicorn")
 
 config = read_config('WEBSCRAPER')
 
@@ -80,65 +78,6 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-
-config = {}
-config['log_config'] = {
-   "version":1,
-   "disable_existing_loggers":True,
-   "formatters":{
-      "default":{
-         "()":"uvicorn.logging.DefaultFormatter",
-         "fmt":"%(levelprefix)s %(message)s",
-         "use_colors":"None"
-      },
-      "access":{
-         "()":"uvicorn.logging.AccessFormatter",
-         "fmt":"%(levelprefix)s %(client_addr)s - \"%(request_line)s\" %(status_code)s"
-      }
-   },
-   "handlers":{
-      "default":{
-         "formatter":"default",
-         "class":"logging.StreamHandler",
-         "stream":"ext://sys.stderr"
-      },
-      "access":{
-         "formatter":"access",
-         "class":"logging.StreamHandler",
-         "stream":"ext://sys.stdout"
-      }
-   },
-   "loggers":{
-      "uvicorn":{
-         "handlers":[
-            "default"
-         ],
-         "level":"INFO"
-      },
-      "uvicorn.error":{
-         "level":"INFO",
-         "handlers":[
-            "default"
-         ],
-         "propagate":True
-      },
-      "uvicorn.access":{
-         "handlers":[
-            "access"
-         ],
-         "level":"INFO",
-         "propagate":False
-      }
-   }
-}
-
-# add your handler to it (in my case, I'm working with quart, but you can do this with Flask etc. as well, they're all the same)
-config['log_config']['loggers']['quart'] = {
-   "handlers":[
-      "default"
-   ],
-   "level":"INFO"
-}
 
 def verify_origin(secret: str) -> bool:
     '''
@@ -199,7 +138,6 @@ def run_scraper():
     :return: Object that states the Scrapy spiders that were executed.
     :rtype: dict
     '''
-    logger.info('Start scraper')
     os.chdir(SCRAPY_PROJ_PATH) # CD to where scrapy.cfg is
 
     for scraper in SCRAPER_MAPPINGS.values():
@@ -264,7 +202,6 @@ def run_nlp_processor():
     :return: Object that states the scraped data that have been processed.
     :rtype: dict
     '''
-    logger.info('Start NLP processor')
     relation_docs = [] # collection of docs to be inserted to relations
     news_docs = [] # collection of docs to be inserted to news
     nodes = {} # collection of docs to be inserted to nodes
@@ -274,17 +211,12 @@ def run_nlp_processor():
     webhook_token = str(uuid.uuid4())
     
     # read scraped data from each of the Scrapy spiders
-    logger.info('Processing articles ...')
     for publisher in SCRAPER_MAPPINGS:
         filepath = os.path.join("webscraper", SCRAPER_MAPPINGS[publisher]['save_file'])
 
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            logger.info(f'({len(data)}) articles from {filepath}')
-            for i, article_obj in enumerate(data): # url, title, date, content
-                if i % 10 == 0:
-                    logger.info(f'{100*i/len(data)}%')
-
+            for article_obj in tqdm(data): # url, title, date, content
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -296,20 +228,17 @@ def run_nlp_processor():
 
                 process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
 
-    logger.info('Processing relations ...')
     visited.clear()
     for scraper in SCRAPER_MAPPINGS:
         filepath = os.path.join("webscraper", SCRAPER_MAPPINGS[scraper]['save_file'])
-        logger.info(f'({len(data)}) articles from {filepath}')
         # relation mapping
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-            for article_obj in data: # url, title, date, content
+            for article_obj in tqdm(data): # url, title, date, content
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
-    logger.info('Reconciliation using WQUPC ...')
     wqupc = WQUPC(len(embeddings))
     words = list(embeddings.keys())
 
@@ -372,11 +301,6 @@ def run_nlp_processor():
             visited.add((central, adjacent))
     
     # update database
-    logger.info('Updating database ...')
-    logger.info(f'Nodes: {len(nodes)} items')
-    logger.info(f'News: {len(news_docs)} items')
-    logger.info(f'Relations: {len(relation_docs)} items')
-    
     if nodes:
         insert_many(TEMP_COLLECTION_NODES, list(map(lambda item: {
             'data': item[0], 
@@ -390,7 +314,6 @@ def run_nlp_processor():
     # store webhook
     insert_one(COLLECTION_WEBHOOKS, {'token': webhook_token})
     
-    logger.info(f'Sending simulation request with webhook token: {webhook_token}')
     requests.get(url=GRAPH_SIMULATION_URL, timeout=5, params={
         'dbraw': RAW_DB_NAME,
         'dbrendered': RENDERED_DB_NAME,
@@ -403,12 +326,8 @@ def read_root():
     
 @app.get('/cycle/')
 def cycle(request: Request) -> dict:
-    logger.info('GET /cycle Authenticating request origin for')
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
-        logger.info('GET /cycle Authentication failed')
         return {'response': 'Invalid or missing secret key'}
-    
-    logger.info('GET /cycle Authenticated')
 
     thread_scraper = threading.Thread(target=run_scraper)
     thread_scraper.start()
@@ -419,27 +338,20 @@ def cycle(request: Request) -> dict:
 
 @app.get('/webhook/{token}/')
 def webhook(token: str):
-    logger.info('GET /webhook Authenticating request origin')
     if token != find_last(COLLECTION_WEBHOOKS)['token']:
-        logger.info('GET /webhook Authentication failed')
         return {'response': 'Invalid token'}
     
-    logger.info('GET /webhook Authenticated')
-    
-    rename_collection(COLLECTION_NEWS, '_' + TEMP_COLLECTION_NEWS)
+    drop_collection(COLLECTION_NEWS)
     rename_collection(TEMP_COLLECTION_NEWS, COLLECTION_NEWS)
-    drop_collection('_' + TEMP_COLLECTION_NEWS)
-
-    rename_collection(COLLECTION_NODES, '_' + TEMP_COLLECTION_NODES)
+    
+    drop_collection(COLLECTION_NODES)
     rename_collection(TEMP_COLLECTION_NODES, COLLECTION_NODES)
-    drop_collection('_' + TEMP_COLLECTION_NODES)
-
-    rename_collection(COLLECTION_RELATIONS, '_' + TEMP_COLLECTION_RELATIONS)
+    
+    drop_collection(COLLECTION_RELATIONS)
     rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
-    drop_collection('_' + TEMP_COLLECTION_RELATIONS)
-
+    
     return {'response': 'Success'}
 
 
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False, **config)
+    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
