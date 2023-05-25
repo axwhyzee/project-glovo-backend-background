@@ -1,16 +1,28 @@
-from pymongo import MongoClient
+from pymongo import (
+    DESCENDING,
+    MongoClient
+)
 from settings import read_config
 import time
 import os
 
 
 config = read_config('MONGODB')
+
 COLLECTION_NEWS = config['COLLECTION_NEWS']
 COLLECTION_NODES = config['COLLECTION_NODES']
 COLLECTION_RELATIONS = config['COLLECTION_RELATIONS']
+COLLECTION_WEBHOOKS = config['COLLECTION_WEBHOOKS']
+
+RAW_DB_NAME = config['RAW_DB_NAME']
+RENDERED_DB_NAME = config['RENDERED_DB_NAME']
+
+TEMP_COLLECTION_NEWS = '_' + COLLECTION_NEWS
+TEMP_COLLECTION_NODES = '_' + COLLECTION_NODES
+TEMP_COLLECTION_RELATIONS = '_' + COLLECTION_RELATIONS
 
 client = MongoClient(os.environ.get('MONGODB_URL'))
-db = client[config['DB_NAME']]
+db = client[RAW_DB_NAME]
 
 
 def insert_many(collection: str, docs: dict):
@@ -63,6 +75,15 @@ def find_many(collection: str, condition: dict, projection: dict):
     '''
     return db[collection].find(condition, projection)
 
+def find_last(collection: str):
+    '''
+    Find last inserted document
+
+    :param str collection: Collection name
+    :return: Last inserted document
+    '''
+    return db[collection].find_one({}, sort=[('_id', DESCENDING)])
+
 def delete_many(collection: str, condition):
     '''
     Delete multiple documents
@@ -72,3 +93,11 @@ def delete_many(collection: str, condition):
     :return: Number of documents deleted
     '''
     return db[collection].delete_many(condition).deleted_count
+
+def drop_collection(collection: str):
+    '''
+    Drop collection
+
+    :param str collection: Name of collection to drop
+    '''
+    db.drop_collection(collection)
