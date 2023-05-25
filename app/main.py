@@ -325,7 +325,7 @@ def run_nlp_processor():
     print(f'GET / {GRAPH_SIMULATION_URL}')
     print(f'dbraw: {RAW_DB_NAME}')
     print(f'dbrendered: {RENDERED_DB_NAME}')
-    print(f'webhook: {HOST_URL}/webhoook/{webhook_token}/')
+    print(f'webhook: {HOST_URL}/webhook/{webhook_token}/')
     print()
 
     try:
