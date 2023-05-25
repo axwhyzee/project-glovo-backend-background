@@ -1,10 +1,12 @@
+import os
+
 from pymongo import (
     DESCENDING,
     MongoClient
 )
+from pymongo.errors import OperationFailure
+
 from settings import read_config
-import time
-import os
 
 
 config = read_config('MONGODB')
@@ -100,8 +102,16 @@ def drop_collection(collection: str):
 
     :param str collection: Name of collection to drop
     '''
-    db.drop_collection(collection)
-
+    try:
+        db.drop_collection(collection)
+    except OperationFailure as e:
+        print(f'{collection} does not exist')
 
 def rename_collection(src: str, dst: str):
+    '''
+    Rename a collection
+
+    :param str src: Original name
+    :param str dst: New name
+    '''
     db[src].rename(dst)
