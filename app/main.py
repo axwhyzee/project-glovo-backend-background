@@ -220,7 +220,7 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data: # url, title, date, content
+            for article_obj in data[-30:]: # url, title, date, content
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -239,7 +239,7 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data: # url, title, date, content
+            for article_obj in data[-30:]: # url, title, date, content
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
