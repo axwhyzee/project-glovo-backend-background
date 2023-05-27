@@ -317,7 +317,7 @@ def run_nlp_processor():
     if news_docs:
         insert_many(TEMP_COLLECTION_NEWS, news_docs)
     if relation_docs:
-        insert_many(TEMP_COLLECTION_RELATIONS, relation_docs)
+        insert_many(TEMP_COLLECTION_RELATIONS, relation_docs) 
     
     # store webhook
     insert_one(COLLECTION_WEBHOOKS, {'token': webhook_token})
@@ -369,14 +369,4 @@ def webhook(token: str):
 
 
 if __name__ == '__main__':
-    webhook_token = '2533ad71-6d63-4f91-b278-53f248732b78'
-    try:
-        requests.get(url=GRAPH_SIMULATION_URL, timeout=10, params={
-            'dbraw': RAW_DB_NAME,
-            'dbrendered': RENDERED_DB_NAME,
-            'webhook': f'{HOST_URL}/webhook/{webhook_token}/'
-        })
-    except ReadTimeout as e:
-        print('Timed out')
-
-    #uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
