@@ -282,6 +282,3 @@ def webhook(token: str):
 
 if __name__ == '__main__':
     uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
-    # rename_collection(COLLECTION_NEWS, TEMP_COLLECTION_NEWS)
-    # rename_collection(COLLECTION_NODES, TEMP_COLLECTION_NODES)
-    # rename_collection(COLLECTION_RELATIONS, TEMP_COLLECTION_RELATIONS)
