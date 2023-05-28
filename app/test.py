@@ -1,5 +1,6 @@
 import requests
 
+'''
 url = 'https://project-glovo-graph-simulation.onrender.com/'
 res = requests.get(url=url, timeout=10, params={
     'dbraw': 'project-glovo',
@@ -8,3 +9,8 @@ res = requests.get(url=url, timeout=10, params={
 })
 
 print(res.url)
+'''
+
+url = 'http://localhost:10000/cycle/'
+r = requests.get(url, headers={"API_SECRET_KEY": "secret_key_0026"})
+print(r.content)

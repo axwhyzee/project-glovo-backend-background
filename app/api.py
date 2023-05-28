@@ -1,8 +1,7 @@
 import requests
-import os
 
+from settings import KEYWORD_EXTRACTION_MICROSERVICE_URL
 
-KEYWORD_EXTRACTION_MICROSERVICE_URL = os.environ.get('KEYWORD_EXTRACTION_MICROSERVICE_URL')
 
 def extract_keywords(content, heading, top_n):
     '''
@@ -18,7 +17,6 @@ def extract_keywords(content, heading, top_n):
         "heading": heading,
         "top_n": top_n
     }
-    
     r = requests.get(KEYWORD_EXTRACTION_MICROSERVICE_URL, params=params)
     
     try:

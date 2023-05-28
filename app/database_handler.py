@@ -6,26 +6,11 @@ from pymongo import (
 )
 from pymongo.errors import OperationFailure
 
-from settings import read_config
+from settings import RAW_DB_NAME
 
-
-config = read_config('MONGODB')
-
-COLLECTION_NEWS = config['COLLECTION_NEWS']
-COLLECTION_NODES = config['COLLECTION_NODES']
-COLLECTION_RELATIONS = config['COLLECTION_RELATIONS']
-COLLECTION_WEBHOOKS = config['COLLECTION_WEBHOOKS']
-
-RAW_DB_NAME = config['RAW_DB_NAME']
-RENDERED_DB_NAME = config['RENDERED_DB_NAME']
-
-TEMP_COLLECTION_NEWS = '_' + COLLECTION_NEWS
-TEMP_COLLECTION_NODES = '_' + COLLECTION_NODES
-TEMP_COLLECTION_RELATIONS = '_' + COLLECTION_RELATIONS
 
 client = MongoClient(os.environ.get('MONGODB_URL'))
 db = client[RAW_DB_NAME]
-
 
 def insert_many(collection: str, docs: dict):
     '''
@@ -34,7 +19,8 @@ def insert_many(collection: str, docs: dict):
     :param str collection: Collection name
     :param dict docs: Document object to be inserted
     '''
-    db[collection].insert_many(docs)
+    if docs:
+        db[collection].insert_many(docs)
 
 def insert_one(collection: str, doc: dict):
     '''

@@ -1,135 +1,58 @@
-from dateutil import parser
-from dotenv import load_dotenv, find_dotenv
-from hashlib import sha256
 import json
 import os
 import requests
 from requests.exceptions import ReadTimeout
 import threading
 import uuid
-load_dotenv(find_dotenv())
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
-import numpy as np
 import uvicorn
 
 from api import extract_keywords
 from database_handler import (
-    COLLECTION_NEWS,
-    COLLECTION_NODES,
-    COLLECTION_RELATIONS,
-    COLLECTION_WEBHOOKS,
-    RAW_DB_NAME,
-    RENDERED_DB_NAME,
-    TEMP_COLLECTION_NODES,
-    TEMP_COLLECTION_NEWS,
-    TEMP_COLLECTION_RELATIONS,
     drop_collection,
     find_last,
     insert_one,
     insert_many,
     rename_collection
 )
-from relation_mapper import map_relations
-from settings import read_config
+from settings import (
+    ARTICLE_LIMIT,
+    COLLECTION_NEWS,
+    COLLECTION_NODES,
+    COLLECTION_RELATIONS,
+    COLLECTION_WEBHOOKS,
+    GRAPH_SIMULATION_URL,
+    HOST_URL,
+    KEYWORDS_PER_ARTICLE,
+    RAW_DB_NAME,
+    RENDERED_DB_NAME,
+    SCRAPER_MAPPINGS,
+    SCRAPY_PROJ_PATH,
+    SIMILARITY_THRESHOLD,
+    TEMP_COLLECTION_NEWS,
+    TEMP_COLLECTION_NODES,
+    TEMP_COLLECTION_RELATIONS,
+    WINDOW_SIZE
+)
+from utils import (
+    verify_origin,
+    timestamp_to_epoch,
+    map_relations,
+    merge_adjacency,
+    get_cosine_similarity
+)
 from WQUPC import WeightedQuickUnionPathCompression as WQUPC
 
 
-config = read_config('PROCESSOR')
-
-SIMILARITY_THRESHOLD = float(config['SIMILARITY_THRESHOLD'])
-
-KEYWORDS_PER_ARTICLE = int(config['KEYWORDS_PER_ARTICLE'])
-
-WINDOW_SIZE = int(config['WINDOW_SIZE'])
-
-SCRAPY_PROJ_PATH = config['SCRAPY_PROJECT_PATH']
-
-ARTICLE_LIMIT = config['ARTICLE_LIMIT']
-
-SHA256_SECRET_KEY = os.environ.get('SHA256_SECRET_KEY')
-
-SCRAPER_MAPPINGS = {
-    'CNBC': {
-        'save_file': 'articles_cnbc.json',
-        'spider': 'cnbc_spider'
-    },
-    'Straits_Times': {
-        'save_file': 'articles_straits_times.json',
-        'spider': 'straits_times_spider'
-    },
-    'Yahoo': {
-        'save_file': 'articles_yahoo.json',
-        'spider': 'yahoo_spider'
-    }
-}
-
-config = read_config('MISC')
-
-GRAPH_SIMULATION_URL = config['GRAPH_SIMULATION_URL']
-
-HOST_URL = config['HOST_URL']
-
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
     allow_methods=['*'], 
     allow_headers=['*'],
 )
-
-
-def verify_origin(secret: str) -> bool:
-    '''
-    Check if request has the correct API secret key
-
-    :param str secret: Secret key from request
-    :return: True if SHA256 hash of secret corresponds to SHA256_SECRET_KEY, else False
-    :rtype: bool
-    '''
-    return SHA256_SECRET_KEY == sha256(secret.encode('utf-8')).hexdigest()
-
-def timestamp_to_epoch(timestamp) -> int:
-    '''
-    ISO 8601 datestring to unix timestamp
-    :param str timestamp: ISO 8601 datestring
-    :return: Unix timestamp
-    :rtype: int
-    '''
-    if timestamp:
-        return int(parser.parse(timestamp).timestamp())
-
-def get_cosine_similarity(a, b):
-    numerator = np.dot(a, b.transpose())
-    
-    a_norm = np.sqrt(np.sum(a ** 2))
-    b_norm = np.sqrt(np.sum(b ** 2))
-
-    denominator = a_norm * b_norm
-
-    cosine_similarity = numerator / denominator
-
-    return cosine_similarity
-
-def merge_adjacency(adjacency_list, src, dst):
-    '''
-    Inplace merging of 2 adjacency lists (merge src into dst)
-
-    :param dict src: Source adjacency list
-    :param dict dst: Destination adjacency list
-    '''
-    adj_src = adjacency_list[src]
-    adj_dst = adjacency_list[dst]
-
-    for neighbour in adj_src:
-        if neighbour in adj_dst:
-            adj_dst[neighbour] += adj_src[neighbour]
-        else:
-            adj_dst[neighbour] = adj_src[neighbour]
-    
-    del adjacency_list[src]
 
 def run_scraper():
     '''
@@ -141,16 +64,12 @@ def run_scraper():
     :rtype: dict
     '''
     os.chdir(SCRAPY_PROJ_PATH) # CD to where scrapy.cfg is
-
     for scraper in SCRAPER_MAPPINGS.values():
         path = scraper['save_file']
-
         # clear previous scrapings
         if (path in os.listdir()):
             os.remove(path)
-
         os.system(f'scrapy crawl -o {path} -t json {scraper["spider"]}')
-
     os.chdir('../')
 
     run_nlp_processor()
@@ -159,10 +78,8 @@ def process_article(article_obj, doc, visited, nodes, relations, embeddings, new
     # check for null, check for visited
     if not (article_obj['url'] and article_obj['datetime'] and article_obj['content']) or article_obj['url'] in visited:
         return
-    
     article_obj['content'] = article_obj['content'].lower()
     article_obj['title'] = article_obj['title'].lower()
-    
     # extract keyphrases, word embeddings, doc embedding from content. Title used for seeding
     keyphrases = extract_keywords(article_obj['content'].replace('\n', ' '), article_obj['title'], KEYWORDS_PER_ARTICLE)
 
@@ -186,11 +103,9 @@ def process_article_relations(article_obj, visited, relations):
     # check for null, check for visited
     if not (article_obj['url'] and article_obj['datetime'] and article_obj['content']) or article_obj['url'] in visited:
         return
-
     visited.add(article_obj['url'])
     content = article_obj['title'] + ' ' + article_obj['content']
     content = content.lower()
-
     for joined_phrase in relations:
         content = content.replace(joined_phrase.replace('__', ' '), joined_phrase)
 
@@ -224,7 +139,7 @@ def run_nlp_processor():
             print(f'({len(data)}) files from {filepath}')
             for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
                 if i % 10 == 0:
-                    print(f'{i / len(data)}%')
+                    print(f'{i / min(len(data), ARTICLE_LIMIT)}%')
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -233,7 +148,6 @@ def run_nlp_processor():
                     'publisher': publisher,
                     'keys': []
                 }
-
                 process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
                 del doc['content']
 
@@ -246,16 +160,15 @@ def run_nlp_processor():
             print(f'({len(data)}) files from {filepath}')
             for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
                 if i % 10 == 0:
-                    print(f'{i / len(data)}%')
+                    print(f'{i / min(len(data), ARTICLE_LIMIT)}%')
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
     wqupc = WQUPC(len(embeddings))
     words = list(embeddings.keys())
-
     for i, word in enumerate(words):
         for j, other in enumerate(words):
-            sim = get_cosine_similarity(np.array(embeddings[word]), np.array(embeddings[other]))
+            sim = get_cosine_similarity(embeddings[word], embeddings[other])
             if i != j and sim > SIMILARITY_THRESHOLD:
                 wqupc.union(i, j)
                 print(word, other, sim)
@@ -264,16 +177,13 @@ def run_nlp_processor():
     for i, id in enumerate(wqupc.get_ids()):
         # belongs to a cluster
         if i != id:
-            # transfer relations
+            # transfer relations to parent
             merge_adjacency(relations, words[i], words[id])
-
             words_i_rep = words[i].replace('__', ' ')
             words_id_rep = words[id].replace('__', ' ')
-
             # transfer node frequency
             nodes[words_id_rep] += nodes[words_i_rep]
             del nodes[words_i_rep]
-
             replacement_map[words[i]] = words[id]
             replacement_map[words_i_rep] = words_id_rep
 
@@ -298,11 +208,9 @@ def run_nlp_processor():
     visited.clear()
     for central in relations:
         adjacency = relations[central]
-
         for adjacent in adjacency:
             if (adjacent, central) in visited or adjacent in replacement_map:
                 continue
-
             relation_docs.append({
                 'src': central.replace('__', ' '),
                 'dst': adjacent.replace('__', ' '), 
@@ -320,17 +228,12 @@ def run_nlp_processor():
     print(f'Insert ({len(news_docs)}) records to {TEMP_COLLECTION_NEWS}')
     print(f'Insert ({len(relation_docs)}) records to {TEMP_COLLECTION_RELATIONS}')
 
-    if nodes:
-        insert_many(TEMP_COLLECTION_NODES, list(map(lambda item: {
-            'data': item[0], 
-            'freq': item[1]
-        }, nodes.items()))) 
-    if news_docs:
-        insert_many(TEMP_COLLECTION_NEWS, news_docs)
-    if relation_docs:
-        insert_many(TEMP_COLLECTION_RELATIONS, relation_docs) 
-    
-    # store webhook
+    insert_many(TEMP_COLLECTION_NODES, list(map(lambda item: {
+        'data': item[0], 
+        'freq': item[1]
+    }, nodes.items()))) 
+    insert_many(TEMP_COLLECTION_NEWS, news_docs)
+    insert_many(TEMP_COLLECTION_RELATIONS, relation_docs) 
     insert_one(COLLECTION_WEBHOOKS, {'token': webhook_token})
     
     print(f'GET / {GRAPH_SIMULATION_URL}')
@@ -345,7 +248,6 @@ def run_nlp_processor():
             'dbrendered': RENDERED_DB_NAME,
             'webhook': f'{HOST_URL}/webhook/{webhook_token}/'
         })
-        print(res.url)
     except ReadTimeout as e:
         pass
 
@@ -357,7 +259,7 @@ def read_root():
 def cycle(request: Request) -> dict:
     if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
         return {'response': 'Invalid or missing secret key'}
-
+    
     thread = threading.Thread(target=run_scraper)
     thread.start()
 
@@ -367,13 +269,11 @@ def cycle(request: Request) -> dict:
 def webhook(token: str):
     if token != find_last(COLLECTION_WEBHOOKS)['token']:
         return {'response': 'Invalid token'}
-    
+
     drop_collection(COLLECTION_NEWS)
     rename_collection(TEMP_COLLECTION_NEWS, COLLECTION_NEWS)
-    
     drop_collection(COLLECTION_NODES)
     rename_collection(TEMP_COLLECTION_NODES, COLLECTION_NODES)
-    
     drop_collection(COLLECTION_RELATIONS)
     rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
     
