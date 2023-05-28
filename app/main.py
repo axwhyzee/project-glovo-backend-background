@@ -222,7 +222,9 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data[-1 * ARTICLE_LIMIT:]: # url, title, date, content
+            for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
+                if i % 10 == 0:
+                    print(f'{i / len(data)}%')
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -233,6 +235,7 @@ def run_nlp_processor():
                 }
 
                 process_article(article_obj, doc, visited, nodes, relations, embeddings, news_docs)
+                del doc['content']
 
     visited.clear()
     for scraper in SCRAPER_MAPPINGS:
@@ -241,7 +244,9 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data[-1 * ARTICLE_LIMIT:]: # url, title, date, content
+            for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
+                if i % 10 == 0:
+                    print(f'{i / len(data)}%')
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
