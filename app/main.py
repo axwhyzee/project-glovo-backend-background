@@ -305,6 +305,10 @@ def run_nlp_processor():
             visited.add((central, adjacent))
     
     # update database
+    drop_collection(TEMP_COLLECTION_NODES)
+    drop_collection(TEMP_COLLECTION_NEWS)
+    drop_collection(TEMP_COLLECTION_RELATIONS)
+
     print(f'Insert ({len(nodes)}) records to {TEMP_COLLECTION_NODES}')
     print(f'Insert ({len(news_docs)}) records to {TEMP_COLLECTION_NEWS}')
     print(f'Insert ({len(relation_docs)}) records to {TEMP_COLLECTION_RELATIONS}')
@@ -329,11 +333,12 @@ def run_nlp_processor():
     print()
 
     try:
-        requests.get(url=GRAPH_SIMULATION_URL, timeout=30, params={
+        res = requests.get(url=GRAPH_SIMULATION_URL, timeout=10, params={
             'dbraw': RAW_DB_NAME,
             'dbrendered': RENDERED_DB_NAME,
             'webhook': f'{HOST_URL}/webhook/{webhook_token}/'
         })
+        print(res.url)
     except ReadTimeout as e:
         pass
 
