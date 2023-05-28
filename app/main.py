@@ -36,7 +36,7 @@ from settings import read_config
 from WQUPC import WeightedQuickUnionPathCompression as WQUPC
 
 
-config = read_config('WEBSCRAPER')
+config = read_config('PROCESSOR')
 
 SIMILARITY_THRESHOLD = float(config['SIMILARITY_THRESHOLD'])
 
@@ -45,6 +45,8 @@ KEYWORDS_PER_ARTICLE = int(config['KEYWORDS_PER_ARTICLE'])
 WINDOW_SIZE = int(config['WINDOW_SIZE'])
 
 SCRAPY_PROJ_PATH = config['SCRAPY_PROJECT_PATH']
+
+ARTICLE_LIMIT = config['ARTICLE_LIMIT']
 
 SHA256_SECRET_KEY = os.environ.get('SHA256_SECRET_KEY')
 
@@ -220,7 +222,7 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data[-30:]: # url, title, date, content
+            for article_obj in data[-1 * ARTICLE_LIMIT:]: # url, title, date, content
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -239,7 +241,7 @@ def run_nlp_processor():
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f'({len(data)}) files from {filepath}')
-            for article_obj in data[-30:]: # url, title, date, content
+            for article_obj in data[-1 * ARTICLE_LIMIT:]: # url, title, date, content
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
@@ -375,3 +377,6 @@ def webhook(token: str):
 
 if __name__ == '__main__':
     uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
+    # rename_collection(COLLECTION_NEWS, TEMP_COLLECTION_NEWS)
+    # rename_collection(COLLECTION_NODES, TEMP_COLLECTION_NODES)
+    # rename_collection(COLLECTION_RELATIONS, TEMP_COLLECTION_RELATIONS)
