@@ -7,7 +7,6 @@ import uuid
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
-import redis
 import uvicorn
 
 from api import extract_keywords
