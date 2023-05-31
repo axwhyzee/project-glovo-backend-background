@@ -7,6 +7,7 @@ import uuid
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
+import redis
 import uvicorn
 
 from api import extract_keywords
@@ -27,6 +28,9 @@ from settings import (
     HOST_URL,
     KEYWORDS_PER_ARTICLE,
     RAW_DB_NAME,
+    REDIS_HOST,
+    REDIS_PASSWORD,
+    REDIS_PORT,
     RENDERED_DB_NAME,
     SCRAPER_MAPPINGS,
     SCRAPY_PROJ_PATH,
@@ -46,6 +50,11 @@ from utils import (
 from WQUPC import WeightedQuickUnionPathCompression as WQUPC
 
 
+r = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    password=REDIS_PASSWORD
+)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -86,16 +95,13 @@ def process_article(article_obj, doc, visited, nodes, relations, embeddings, new
     for phrase, embedding in keyphrases:
         # increment frequency of phrase
         nodes[phrase] = nodes.get(phrase, 0) + 1
-
         doc['keys'].append(phrase)
         phrase = phrase.replace(' ', '__')
 
         if phrase not in relations:
             relations[phrase] = {}
-        
         if phrase not in embeddings:
             embeddings[phrase] = embedding
-
     news_docs.append(doc)
     visited.add(article_obj['url'])
 
@@ -139,7 +145,7 @@ def run_nlp_processor():
             print(f'({len(data)}) files from {filepath}')
             for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
                 if i % 10 == 0:
-                    print(f'{i / min(len(data), ARTICLE_LIMIT)}%')
+                    print(f'{round(100 * i / min(len(data), 2), ARTICLE_LIMIT)}%')
                 doc = {
                     'title': article_obj['title'],
                     'url': article_obj['url'],
@@ -160,7 +166,7 @@ def run_nlp_processor():
             print(f'({len(data)}) files from {filepath}')
             for i, article_obj in enumerate(data[-1 * ARTICLE_LIMIT:]): # url, title, date, content
                 if i % 10 == 0:
-                    print(f'{i / min(len(data), ARTICLE_LIMIT)}%')
+                    print(f'{round(100 * i / min(len(data), 2), ARTICLE_LIMIT)}%')
                 process_article_relations(article_obj, visited, relations)
     
     # reconciliation using WQUPC
@@ -240,7 +246,6 @@ def run_nlp_processor():
     print(f'dbraw: {RAW_DB_NAME}')
     print(f'dbrendered: {RENDERED_DB_NAME}')
     print(f'webhook: {HOST_URL}/webhook/{webhook_token}/')
-    print()
 
     try:
         res = requests.get(url=GRAPH_SIMULATION_URL, timeout=10, params={
@@ -276,6 +281,7 @@ def webhook(token: str):
     rename_collection(TEMP_COLLECTION_NODES, COLLECTION_NODES)
     drop_collection(COLLECTION_RELATIONS)
     rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
+    r.flushdb() # clear cache
     
     return {'response': 'Success'}
 
