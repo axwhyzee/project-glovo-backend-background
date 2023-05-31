@@ -19,6 +19,8 @@ from database_handler import (
     rename_collection
 )
 from settings import (
+    API_KEY,
+    API_URL,
     ARTICLE_LIMIT,
     COLLECTION_NEWS,
     COLLECTION_NODES,
@@ -28,9 +30,6 @@ from settings import (
     HOST_URL,
     KEYWORDS_PER_ARTICLE,
     RAW_DB_NAME,
-    REDIS_HOST,
-    REDIS_PASSWORD,
-    REDIS_PORT,
     RENDERED_DB_NAME,
     SCRAPER_MAPPINGS,
     SCRAPY_PROJ_PATH,
@@ -50,11 +49,6 @@ from utils import (
 from WQUPC import WeightedQuickUnionPathCompression as WQUPC
 
 
-r = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    password=REDIS_PASSWORD
-)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -281,7 +275,7 @@ def webhook(token: str):
     rename_collection(TEMP_COLLECTION_NODES, COLLECTION_NODES)
     drop_collection(COLLECTION_RELATIONS)
     rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
-    r.flushdb() # clear cache
+    r = requests.get(f'{API_URL}/flush-cache/?token={API_KEY}') # clear cache
     
     return {'response': 'Success'}
 

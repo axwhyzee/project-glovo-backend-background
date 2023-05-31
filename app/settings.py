@@ -43,7 +43,9 @@ config = parser['MISC']
 GRAPH_SIMULATION_URL = config['GRAPH_SIMULATION_URL']
 HOST_URL = config['HOST_URL']
 
-SHA256_SECRET_KEY = os.environ.get('SHA256_SECRET_KEY')
+API_KEY = os.environ.get('API_KEY')
+API_URL = os.environ.get('API_URL')
+FERNET_KEY = os.environ.get('FERNET_KEY')
+FERNET_SECRET = os.environ.get('FERNET_SECRET')
 KEYWORD_EXTRACTION_MICROSERVICE_URL = os.environ.get('KEYWORD_EXTRACTION_MICROSERVICE_URL')
-REDIS_HOST, REDIS_PORT = os.environ.get('REDIS_URL').split(':')
-REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
+

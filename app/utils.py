@@ -1,20 +1,24 @@
 from dateutil import parser
-from hashlib import sha256
 
+from cryptography.fernet import Fernet
 import numpy as np
 
-from settings import SHA256_SECRET_KEY
+from settings import (
+    FERNET_KEY,
+    FERNET_SECRET
+)
 
+fernet = Fernet(FERNET_KEY)
 
 def verify_origin(secret: str) -> bool:
     '''
     Check if request has the correct API secret key
 
     :param str secret: Secret key from request
-    :return: True if SHA256 hash of secret corresponds to SHA256_SECRET_KEY, else False
+    :return: True if authorized
     :rtype: bool
     '''
-    return SHA256_SECRET_KEY == sha256(secret.encode('utf-8')).hexdigest()
+    return FERNET_SECRET == fernet.decrypt(secret.encode('utf-8').decode('utf-8'))
 
 def timestamp_to_epoch(timestamp) -> int:
     '''
