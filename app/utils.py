@@ -1,6 +1,6 @@
 from dateutil import parser
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import numpy as np
 
 from settings import (
@@ -8,6 +8,7 @@ from settings import (
     FERNET_SECRET
 )
 
+print(FERNET_KEY, FERNET_SECRET)
 fernet = Fernet(FERNET_KEY)
 
 def verify_origin(secret: str) -> bool:
@@ -18,7 +19,10 @@ def verify_origin(secret: str) -> bool:
     :return: True if authorized
     :rtype: bool
     '''
-    return FERNET_SECRET == fernet.decrypt(secret.encode('utf-8').decode('utf-8'))
+    try:
+        return FERNET_SECRET == fernet.decrypt(secret.encode('utf-8')).decode('utf-8')
+    except InvalidToken as e:
+        return False
 
 def timestamp_to_epoch(timestamp) -> int:
     '''

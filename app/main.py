@@ -255,7 +255,7 @@ def read_root():
     
 @app.get('/cycle/')
 def cycle(request: Request) -> dict:
-    if not request.headers.get('API_SECRET_KEY') or not verify_origin(request.headers.get('API_SECRET_KEY')):
+    if not request.headers.get('API_KEY') or not verify_origin(request.headers.get('API_KEY')):
         return {'response': 'Invalid or missing secret key'}
     
     thread = threading.Thread(target=run_scraper)
@@ -276,7 +276,7 @@ def webhook(token: str):
     rename_collection(TEMP_COLLECTION_RELATIONS, COLLECTION_RELATIONS)
     r = requests.get(f'{API_URL}/flush-cache/?token={API_KEY}') # clear cache
     
-    return {'response': 'Success'}
+    return {'response': r.text}
 
 
 if __name__ == '__main__':
